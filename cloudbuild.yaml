@@ -1,0 +1,58 @@
+steps:
+- name: gcr.io/cloud-builders/docker
+  args:
+  - image
+  - build
+  - -t
+  - asia-south2-docker.pkg.dev/gkemhcs-project-1/${_REPO_NAME}/sahitya-image
+  - .
+- name: gcr.io/cloud-builders/docker
+  args:
+  - push 
+  - asia-south2-docker.pkg.dev/gkemhcs-project-1/${_REPO_NAME}/sahitya-image
+- name: ubuntu
+  id: release-id-creator
+  volumes:
+  - name: vol-1
+    path: /mount
+  entrypoint: /bin/bash
+  args:
+  - -c 
+  - |
+      apt-get update && apt-get install -y uuid-runtime
+      export id=$(uuidgen -t|cut -d "-" -f 1)
+      echo $id > /mount/id.txt
+- name: gcr.io/cloud-builders/gcloud
+  waitFor:
+    - release-id-creator
+  volumes:
+  - name: vol-1
+    path: /mount
+  entrypoint: /bin/bash
+  args:
+  - -c
+  - | 
+       export id=$(cat /mount/id.txt)
+       export image_digest=$(gcloud artifacts docker  images describe asia-south2-docker.pkg.dev/gkemhcs-project-1/${_REPO_NAME}/sahitya-image --format "value(image_summary.fully_qualified_digest)")
+       gcloud beta container binauthz attestations sign-and-create --artifact-url $image_digest \
+       --attestor ci-cd-attestor \
+       --keyversion projects/gkemhcs-project-1/locations/asia-south2/keyRings/keyring-attest/cryptoKeys/key-attestor/cryptoKeyVersions/1
+       gcloud  beta deploy releases create release-$id \
+       --delivery-pipeline ci-pipeline \
+       --region asia-south2 \
+       --skaffold-file skaffold.yaml \
+       --images=ci-cd-image=$image_digest \
+       --initial-rollout-labels=release-id=$id
+       echo "succesfully deployed the image"
+       export rollout_id=$(gcloud deploy rollouts list --release release-$id --delivery-pipeline ci-pipeline --region asia-south2 --format "value(name)")
+       sleep 100  
+       echo $rollout_id to beta
+       gcloud beta deploy rollouts advance $rollout_id  --release release-$id --delivery-pipeline ci-pipeline  --quiet
+       sleep 100 
+       echo rollout startd to stable
+       gcloud beta deploy rollouts advance $rollout_id  --release release-$id --delivery-pipeline ci-pipeline   --quiet
+       
+images:
+- asia-south2-docker.pkg.dev/gkemhcs-project-1/${_REPO_NAME}/sahitya-image
+serviceAccount:  projects/gkemhcs-project-1/serviceAccounts/cloud-builder@gkemhcs-project-1.iam.gserviceaccount.com 
+logsBucket: gs://sahitya-repo

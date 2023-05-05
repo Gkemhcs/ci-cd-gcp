@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+   name: frontend-dep 
+   labels: 
+     type: frontend
+spec:
+  replicas: 10
+  selector:
+     matchLabels: 
+        pod: frontend
+  template:
+     metadata:
+        labels:
+           pod: frontend
+     spec:
+       containers:
+       - name: cnt-1
+         image:  ci-cd-image
+         ports:
+         - containerPort: 8080
