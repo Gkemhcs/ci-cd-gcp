@@ -45,10 +45,10 @@ steps:
        --initial-rollout-labels=release-id=$id
        echo "succesfully deployed the image"
        export rollout_id=$(gcloud deploy rollouts list --release release-$id --delivery-pipeline ci-pipeline --region asia-south2 --format "value(name)")
-       sleep 100  
+       sleep 1000  
        echo $rollout_id to beta
        gcloud beta deploy rollouts advance $rollout_id  --release release-$id --delivery-pipeline ci-pipeline  --quiet
-       sleep 100 
+       sleep 1000 
        echo rollout startd to stable
        gcloud beta deploy rollouts advance $rollout_id  --release release-$id --delivery-pipeline ci-pipeline   --quiet
        
